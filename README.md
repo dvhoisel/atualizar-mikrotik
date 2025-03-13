@@ -8,8 +8,12 @@ Este script automatiza o processo de atualização do RouterOS em múltiplos equ
   - Consulta a página oficial de changelogs da MikroTik para obter a versão mais recente estável
   - Inclui múltiplos métodos de fallback para detecção de versão
 - Permite definir manualmente a versão do RouterOS a ser instalada
+- **Detecção robusta da versão atual** dos equipamentos Mikrotik:
+  - Utiliza múltiplos métodos de detecção para garantir compatibilidade com todas as versões
+  - Normaliza as versões para comparação correta (7.10.0 = 7.10)
+  - Garante que equipamentos já atualizados não sejam processados desnecessariamente
 - Suporte completo a todas as arquiteturas disponíveis para dispositivos Mikrotik:
-  - arm, arm64, mipsbe, mmips, ppc, tile, smips
+  - arm, arm64/aarch64, mipsbe, mmips, mipsle, ppc, powerpc, tile, x86, smips, e500v2
   - Detecção automática de novas arquiteturas para cada versão
 - Baixa os arquivos de atualização para todas as arquiteturas suportadas
 - Detecta a arquitetura de cada equipamento Mikrotik com alta precisão
@@ -131,8 +135,13 @@ O script realiza as seguintes operações:
 
 3. **Para cada equipamento**:
    - Conecta usando as credenciais padrão e a porta especificada
+   - **Verifica a versão atual do RouterOS usando múltiplos métodos**:
+     - Comando `/system package update print`
+     - Comando `/system resource print`
+     - Comando `/system package print where name=routeros`
+     - Normaliza as versões para comparação precisa (removendo sufixos como "long-term")
+     - Pula a atualização se o equipamento já estiver na versão desejada
    - Detecta a arquitetura do RouterOS instalado com sistema avançado de mapeamento
-   - Utiliza múltiplos métodos de detecção para garantir compatibilidade com todas as variantes
    - Transfere o arquivo de atualização correspondente via SCP
    - Verifica se o arquivo foi transferido corretamente
    
@@ -186,13 +195,19 @@ Se encontrar problemas ao executar o script:
    - O script tentará automaticamente várias abordagens para detectar a versão
    - Consulte os logs para ver qual método foi usado para detectar a versão
 
-2. **Problema de detecção de arquitetura**:
+2. **Problema de detecção da versão atual**:
+   - O script agora emprega múltiplos métodos para detectar a versão instalada no dispositivo
+   - Os logs mostram detalhadamente qual método foi usado e as versões detectadas
+   - Se nenhum método conseguir detectar a versão, o script assumirá que o dispositivo precisa ser atualizado
+   - As versões são normalizadas para evitar falsos negativos na comparação (ex: 7.10.0 será tratado como 7.10)
+
+3. **Problema de detecção de arquitetura**:
    - O script agora possui sistema avançado de detecção de arquiteturas
    - Caso a arquitetura não seja reconhecida automaticamente, o script tentará verificar quais arquivos estão disponíveis
    - Verifique os logs para mais detalhes sobre a detecção de arquitetura
    - O sistema de fallback tentará encontrar automaticamente a arquitetura correta
 
-3. **Outros problemas comuns**:
+4. **Outros problemas comuns**:
    - Verifique as permissões do script (deve ser executável)
    - Confirme se todos os pacotes necessários estão instalados
    - Verifique se as credenciais SSH estão corretas
@@ -214,4 +229,4 @@ Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou enviar
 
 ## Licença
 
-Este projeto é distribuído sob a licença GPL 3.0. Veja o arquivo LICENSE para mais detalhes. 
+Este projeto é distribuído sob a licença MIT. Veja o arquivo LICENSE para mais detalhes. 
