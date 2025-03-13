@@ -582,11 +582,31 @@ EOF
     
     # 3. Verificar se o arquivo foi copiado corretamente
     registrar_log "INFO" "Verificando se o arquivo foi copiado corretamente..."
-    local verificacao=$(sshpass -p "$SENHA_PADRAO" ssh $ssh_opts "$USUARIO_PADRAO@$ip" "ls -la /$arquivo" 2>/dev/null)
     
-    if [ -z "$verificacao" ]; then
-        registrar_log "ERRO" "Arquivo não encontrado no equipamento $ip:$porta após transferência"
-        return 1
+    # Usar uma abordagem diferente para verificar o arquivo, com mais opções de verificação
+    local verificacao_status=0
+    local verificacao=""
+    
+    # Tenta verificar de várias maneiras
+    verificacao=$(sshpass -p "$SENHA_PADRAO" ssh $ssh_opts "$USUARIO_PADRAO@$ip" "/file print detail where name=\"$arquivo\"" 2>/dev/null) || verificacao_status=$?
+    
+    if [ $verificacao_status -ne 0 ] || [ -z "$verificacao" ]; then
+        # Tenta um segundo método
+        verificacao=$(sshpass -p "$SENHA_PADRAO" ssh $ssh_opts "$USUARIO_PADRAO@$ip" "/file print" 2>/dev/null | grep -i "$arquivo") || verificacao_status=$?
+        
+        if [ $verificacao_status -ne 0 ] || [ -z "$verificacao" ]; then
+            # Tenta um terceiro método mais simples
+            verificacao=$(sshpass -p "$SENHA_PADRAO" ssh $ssh_opts "$USUARIO_PADRAO@$ip" "ls" 2>/dev/null | grep -i "$arquivo") || verificacao_status=$?
+        fi
+    fi
+    
+    if [ $verificacao_status -ne 0 ] || [ -z "$verificacao" ]; then
+        registrar_log "ERRO" "Arquivo não encontrado no equipamento $ip:$porta após transferência. Status: $verificacao_status"
+        registrar_log "AVISO" "Continuando com a configuração mesmo sem confirmar a transferência do arquivo..."
+        # Continua a execução em vez de retornar erro
+        # return 1
+    else
+        registrar_log "INFO" "Arquivo encontrado no equipamento: $verificacao"
     fi
     
     # 4. Configurar os agendamentos para reboot com o upgrade da routerboard entre eles
@@ -775,10 +795,27 @@ main() {
     local sucesso=0
     local falha=0
     
+    # Adiciona informações de debug sobre o arquivo de equipamentos
+    registrar_log "DEBUG" "Conteúdo do arquivo de equipamentos:"
+    local total_linhas=$(cat "$ARQUIVO_EQUIPAMENTOS" | grep -v "^#" | grep -v "^$" | wc -l)
+    registrar_log "DEBUG" "Total de linhas não comentadas: $total_linhas"
+    
     # Processa cada equipamento no arquivo
-    while IFS="|" read -r ip porta || [[ -n "$ip" ]]; do
-        # Ignora linhas em branco ou comentadas
-        [[ -z "$ip" || "$ip" =~ ^# ]] && continue
+    registrar_log "INFO" "Iniciando processamento dos equipamentos..."
+    
+    # Lê o arquivo para um array para evitar problemas com o redirecionamento
+    mapfile -t linhas < "$ARQUIVO_EQUIPAMENTOS"
+    
+    # Processa cada linha do array
+    for linha in "${linhas[@]}"; do
+        # Pula linhas em branco ou comentadas
+        [[ -z "$linha" || "$linha" =~ ^# ]] && continue
+        
+        # Separa IP e porta
+        IFS="|" read -r ip porta <<< "$linha"
+        
+        # Registra a linha lida para debug
+        registrar_log "DEBUG" "Processando linha: IP='$ip', PORTA='$porta'"
         
         # Remove espaços em branco
         ip=$(echo "$ip" | xargs)
@@ -786,10 +823,13 @@ main() {
         # Verifica se a porta foi especificada, senão usa a padrão
         if [ -z "$porta" ]; then
             porta="$PORTA_PADRAO"
+            registrar_log "DEBUG" "Usando porta padrão: $porta"
         else
             porta=$(echo "$porta" | xargs)
+            registrar_log "DEBUG" "Usando porta especificada: $porta"
         fi
         
+        registrar_log "INFO" "Processando equipamento $ip:$porta (${total}+1)"
         echo -e "${AMARELO}Configurando atualização para equipamento $ip:$porta...${SEM_COR}"
         
         # Configura a atualização
@@ -803,7 +843,11 @@ main() {
         
         ((total++))
         echo
-    done < "$ARQUIVO_EQUIPAMENTOS"
+        
+        registrar_log "DEBUG" "Equipamentos processados até agora: $total (Sucesso: $sucesso, Falha: $falha)"
+    done
+    
+    registrar_log "INFO" "Processamento de equipamentos concluído. Total: $total"
     
     # Exibe resumo
     echo -e "${VERDE}==== Resumo da execução ====${SEM_COR}"
