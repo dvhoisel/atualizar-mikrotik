@@ -457,6 +457,52 @@ configurar_atualizacao() {
     # Opções SSH para porta personalizada
     local ssh_opts="-p $porta -o StrictHostKeyChecking=no -o ConnectTimeout=10"
     
+    # Verificar a versão atual do RouterOS no Mikrotik
+    registrar_log "INFO" "Verificando a versão atual do RouterOS no equipamento $ip:$porta..."
+    
+    # Método 1: Usando system package update print
+    local versao_atual=$(sshpass -p "$SENHA_PADRAO" ssh $ssh_opts "$USUARIO_PADRAO@$ip" "/system package update print" 2>/dev/null | grep -i "installed-version" | awk '{print $2}')
+    local metodo_deteccao="package update"
+    
+    # Método 2: Se o primeiro falhar, usa system resource print
+    if [ -z "$versao_atual" ]; then
+        versao_atual=$(sshpass -p "$SENHA_PADRAO" ssh $ssh_opts "$USUARIO_PADRAO@$ip" "/system resource print" 2>/dev/null | grep -i "version" | awk '{print $2}')
+        metodo_deteccao="resource print"
+    fi
+    
+    # Método 3: Tenta outro comando - system package print
+    if [ -z "$versao_atual" ]; then
+        versao_atual=$(sshpass -p "$SENHA_PADRAO" ssh $ssh_opts "$USUARIO_PADRAO@$ip" "/system package print where name=routeros" 2>/dev/null | grep -i "version" | awk '{print $2}')
+        metodo_deteccao="package print"
+    fi
+
+    if [ -z "$versao_atual" ]; then
+        registrar_log "AVISO" "Não foi possível determinar a versão atual do RouterOS no equipamento $ip:$porta"
+        registrar_log "INFO" "Assumindo que o equipamento precisa de atualização."
+    else
+        # Armazena a versão original para log
+        local versao_atual_original="$versao_atual"
+        
+        # Remove possíveis sufixos da versão (como "long-term" ou parênteses)
+        versao_atual=$(echo "$versao_atual" | sed 's/[(].*[)]//g' | awk '{print $1}' | tr -d '[:space:]')
+        
+        # Adiciona informações detalhadas ao log
+        registrar_log "INFO" "Versão atual do RouterOS no equipamento $ip:$porta: $versao_atual (detectada via $metodo_deteccao)"
+        registrar_log "INFO" "Versão de destino para atualização: $versao"
+        
+        # Normaliza as versões para comparação (remove zeros à direita, como 7.15.0 -> 7.15)
+        local versao_atual_norm=$(echo "$versao_atual" | sed 's/\.0$//g')
+        local versao_destino_norm=$(echo "$versao" | sed 's/\.0$//g')
+        
+        # Compara as versões
+        if [ "$versao_atual_norm" = "$versao_destino_norm" ]; then
+            registrar_log "INFO" "O equipamento $ip:$porta já está na versão mais recente ($versao_atual_original). Pulando atualização."
+            return 0
+        else
+            registrar_log "INFO" "Atualizando equipamento $ip:$porta da versão $versao_atual_original para $versao"
+        fi
+    fi
+    
     # 1. Detectar a arquitetura do dispositivo
     registrar_log "INFO" "Detectando arquitetura do equipamento $ip:$porta..."
     local arquitetura=$(sshpass -p "$SENHA_PADRAO" ssh $ssh_opts "$USUARIO_PADRAO@$ip" "/system resource print" | grep -i "architecture-name" | awk '{print $2}')
