@@ -9,7 +9,7 @@ Este script automatiza o processo de atualização do RouterOS em múltiplos equ
   - Inclui múltiplos métodos de fallback para detecção de versão
 - Permite definir manualmente a versão do RouterOS a ser instalada
 - Suporte completo a todas as arquiteturas disponíveis para dispositivos Mikrotik:
-  - arm, arm64/aarch64, mipsbe, mmips, mipsle, ppc, powerpc, tile, x86, smips, e500v2
+  - arm, arm64, mipsbe, mmips, ppc, tile, smips
   - Detecção automática de novas arquiteturas para cada versão
 - Baixa os arquivos de atualização para todas as arquiteturas suportadas
 - Detecta a arquitetura de cada equipamento Mikrotik com alta precisão
