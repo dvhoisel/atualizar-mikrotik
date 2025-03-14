@@ -1,4 +1,4 @@
-# Script para Atualização de Equipamentos Mikrotik
+# Script para Atualização de Equipamentos Mikrotik (v7)
 
 Este script automatiza o processo de atualização do RouterOS em múltiplos equipamentos Mikrotik. Ele verifica a versão mais recente disponível, baixa os arquivos necessários e configura cada equipamento para realizar a atualização na data e hora programadas.
 
